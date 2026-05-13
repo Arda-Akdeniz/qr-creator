@@ -1,0 +1,4 @@
+Flask==3.0.0
+qrcode==8.0
+Pillow==10.2.0
+ezdxf==1.2.0
