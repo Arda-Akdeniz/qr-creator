@@ -113,6 +113,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const tedasHasData = isTedasQrFilled();
         const customFilled = isCustomTextFilled();
 
+        sizeText.textContent = `• Boyut: ${sizeMm.value} mm`;
+
         if (!tedasHasData && !customFilled) {
             qrPreview.innerHTML = `
                 <div class="placeholder-animation">
@@ -133,7 +135,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </div>
             `;
-            sizeText.textContent = '';
             showStatus('Veri giriniz', null);
             initializeFaceInteractions();
             return;
@@ -161,7 +162,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </div>
             `;
-            sizeText.textContent = '';
             initializeFaceInteractions();
             return;
         }
