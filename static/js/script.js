@@ -403,6 +403,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const data = imageData.data;
 
         let svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`;
+        svgContent += `<style>rect{stroke:none}</style>`;
         svgContent += `<rect width="${size}" height="${size}" fill="white"/>`;
 
         for (let i = 0; i < data.length; i += 4) {
