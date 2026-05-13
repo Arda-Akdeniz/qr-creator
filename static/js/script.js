@@ -321,10 +321,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (format === 'png') {
                 const tempDiv = document.createElement('div');
+                const pngSize = sizeMm.value * 140;
                 const qr = new QRCode(tempDiv, {
                     text: qrText,
-                    width: 280 * 10,
-                    height: 280 * 10,
+                    width: pngSize,
+                    height: pngSize,
                     colorDark: '#000000',
                     colorLight: '#FFFFFF',
                     correctLevel: errorLevelMap[data.error_level] || QRCode.CorrectLevel.L
