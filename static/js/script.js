@@ -402,24 +402,27 @@ document.addEventListener('DOMContentLoaded', function() {
         const imageData = ctx.getImageData(0, 0, size, size);
         const data = imageData.data;
 
-        let svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`;
-        svgContent += `<style>rect{stroke:none}</style>`;
-        svgContent += `<rect width="${size}" height="${size}" fill="white"/>`;
+        let svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><rect width="${size}" height="${size}" fill="white"/><g fill="black">`;
 
-        for (let i = 0; i < data.length; i += 4) {
-            const red = data[i];
-            const green = data[i + 1];
-            const blue = data[i + 2];
+        for (let y = 0; y < size; y++) {
+            let inBlock = false;
+            let blockStart = 0;
 
-            if (red < 128 || green < 128 || blue < 128) {
-                const pixelIndex = i / 4;
-                const x = pixelIndex % size;
-                const y = Math.floor(pixelIndex / size);
-                svgContent += `<rect x="${x}" y="${y}" width="1" height="1" fill="black"/>`;
+            for (let x = 0; x <= size; x++) {
+                const i = (y * size + x) * 4;
+                const isBlack = x < size && (data[i] < 128 || data[i + 1] < 128 || data[i + 2] < 128);
+
+                if (isBlack && !inBlock) {
+                    inBlock = true;
+                    blockStart = x;
+                } else if (!isBlack && inBlock) {
+                    svgContent += `<rect x="${blockStart}" y="${y}" width="${x - blockStart}" height="1"/>`;
+                    inBlock = false;
+                }
             }
         }
 
-        svgContent += `</svg>`;
+        svgContent += `</g></svg>`;
 
         const blob = new Blob([svgContent], { type: 'image/svg+xml' });
         const url = URL.createObjectURL(blob);
