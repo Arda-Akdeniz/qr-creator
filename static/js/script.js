@@ -252,9 +252,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Immediate update for select and number inputs
     if (errorLevel) {
         errorLevel.addEventListener('change', updatePreview);
+        errorLevel.onchange = updatePreview;
     }
 
     if (sizeMm) {
+        sizeMm.oninput = updatePreview;
+        sizeMm.onchange = updatePreview;
         sizeMm.addEventListener('input', updatePreview);
         sizeMm.addEventListener('change', updatePreview);
     }
