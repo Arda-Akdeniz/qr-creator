@@ -255,14 +255,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (sizeMm) {
-        sizeMm.addEventListener('input', () => {
-            console.log('Size changed:', sizeMm.value);
-            updatePreview();
-        });
-        sizeMm.addEventListener('change', () => {
-            console.log('Size change event:', sizeMm.value);
-            updatePreview();
-        });
+        sizeMm.addEventListener('input', updatePreview);
+        sizeMm.addEventListener('change', updatePreview);
     }
 
     // Initialize face interactions
