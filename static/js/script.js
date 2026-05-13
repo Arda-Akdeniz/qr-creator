@@ -321,7 +321,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (format === 'png') {
                 const tempDiv = document.createElement('div');
-                const pngSize = sizeMm.value * 140;
+                const mmToPixel = sizeMm.value * (96 / 25.4);
+                const pngSize = Math.round(mmToPixel);
                 const qr = new QRCode(tempDiv, {
                     text: qrText,
                     width: pngSize,
