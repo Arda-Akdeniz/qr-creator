@@ -79,10 +79,37 @@ document.addEventListener('DOMContentLoaded', function() {
         };
     }
 
-    async function updatePreview() {
-        const data = getFormData();
+    function generateQRText(data) {
+        const customtext = data.customtext.trim();
+        const vals = {
+            'karekodno': data.karekodno.toUpperCase(),
+            'tedas': data.tedas.toUpperCase(),
+            'marka': data.marka.toUpperCase(),
+            'flag': data.flag.toUpperCase(),
+            'model': data.model.toUpperCase(),
+            'modelkodu': data.modelkodu.toUpperCase(),
+            'serino': data.serino.toUpperCase(),
+            'imaltarihi': data.imaltarihi.toUpperCase(),
+        };
 
-        // Check if TEDAŞ QR KOD fields have ANY data OR custom text is filled
+        if (customtext && !vals.karekodno && !vals.tedas && !vals.marka && !vals.flag && !vals.model && !vals.modelkodu && !vals.serino && !vals.imaltarihi) {
+            return customtext;
+        } else if (vals.karekodno && vals.tedas && vals.marka && vals.flag && vals.model && vals.modelkodu && vals.serino && vals.imaltarihi) {
+            vals.serino = vals.serino.replace(/\D/g, '').padStart(9, '0');
+            vals.imaltarihi = vals.imaltarihi.length === 4 ? vals.imaltarihi.slice(-2) : vals.imaltarihi.padStart(2, '0');
+
+            let qr_text = `||KAREKODNO_${vals.karekodno}|TEDASKIRILIM_${vals.tedas}|MARKA_${vals.marka}|FLAG_${vals.flag}|MODEL_${vals.model}|MODELKODU_${vals.modelkodu}|SERINO_${vals.serino}|IMALTARIHI_${vals.imaltarihi}||`;
+
+            if (customtext) {
+                qr_text += `|OZELMETIN_${customtext}|`;
+            }
+            return qr_text;
+        }
+        return null;
+    }
+
+    function updatePreview() {
+        const data = getFormData();
         const tedasHasData = isTedasQrFilled();
         const customFilled = isCustomTextFilled();
 
@@ -112,53 +139,17 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        try {
-            const response = await fetch('/api/preview', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data)
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                showStatus(error.error || 'Hata oluştu', 'error');
-                qrPreview.innerHTML = `
-                    <div class="placeholder-animation">
-                        <div class="animated-dots">
-                            <span></span>
-                            <span></span>
-                            <span></span>
-                        </div>
-                        <div class="digital-face">
-                            <div class="face">
-                                <div class="eye left-eye">
-                                    <div class="pupil left-pupil"></div>
-                                </div>
-                                <div class="eye right-eye">
-                                    <div class="pupil right-pupil"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                sizeText.textContent = '';
-                initializeFaceInteractions();
-                return;
-            }
-
-            const result = await response.json();
-
+        const qrText = generateQRText(data);
+        if (!qrText) {
+            showStatus('Veri giriniz', 'error');
             qrPreview.innerHTML = `
-                <img src="${result.image}" alt="QR Code" style="position: relative; z-index: 2;">
-                <div class="background-animation">
+                <div class="placeholder-animation">
                     <div class="animated-dots">
                         <span></span>
                         <span></span>
                         <span></span>
                     </div>
-                    <div class="digital-face" style="opacity: 0.3;">
+                    <div class="digital-face">
                         <div class="face">
                             <div class="eye left-eye">
                                 <div class="pupil left-pupil"></div>
@@ -170,8 +161,57 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </div>
             `;
-            sizeText.textContent = `• Boyut: ${result.size}`;
-            showStatus('✓ Geçerli', 'valid');
+            sizeText.textContent = '';
+            initializeFaceInteractions();
+            return;
+        }
+
+        try {
+            const errorLevelMap = {
+                'L': QRCode.CorrectLevel.L,
+                'M': QRCode.CorrectLevel.M,
+                'Q': QRCode.CorrectLevel.Q,
+                'H': QRCode.CorrectLevel.H,
+            };
+
+            const canvas = document.createElement('canvas');
+            const qr = new QRCode(canvas, {
+                text: qrText,
+                width: 280,
+                height: 280,
+                colorDark: '#000000',
+                colorLight: '#FFFFFF',
+                correctLevel: errorLevelMap[data.error_level] || QRCode.CorrectLevel.L
+            });
+
+            setTimeout(() => {
+                const img = canvas.querySelector('img');
+                if (img) {
+                    qrPreview.innerHTML = `
+                        <img src="${img.src}" alt="QR Code" style="position: relative; z-index: 2;">
+                        <div class="background-animation">
+                            <div class="animated-dots">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                            </div>
+                            <div class="digital-face" style="opacity: 0.3;">
+                                <div class="face">
+                                    <div class="eye left-eye">
+                                        <div class="pupil left-pupil"></div>
+                                    </div>
+                                    <div class="eye right-eye">
+                                        <div class="pupil right-pupil"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    sizeText.textContent = `• Boyut: ${(280 / 25.4).toFixed(1)} mm`;
+                    showStatus('✓ Geçerli', 'valid');
+                    initializeFaceInteractions();
+                }
+            }, 100);
 
         } catch (error) {
             console.error('Error:', error);
@@ -251,54 +291,192 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    async function exportFile(format) {
+    function exportFile(format) {
         const data = getFormData();
-        const endpoint = format === 'png' ? '/api/export-png' : '/api/export';
-        const extension = format === 'png' ? 'png' : 'dxf';
+        const qrText = generateQRText(data);
+
+        if (!qrText) {
+            alert('Lütfen geçerli veri giriniz');
+            return;
+        }
 
         try {
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    ...data,
-                    size_mm: sizeMm.value
-                })
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                alert('Hata: ' + (error.error || 'Dosya indirilemiyor'));
-                return;
-            }
-
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
+            const errorLevelMap = {
+                'L': QRCode.CorrectLevel.L,
+                'M': QRCode.CorrectLevel.M,
+                'Q': QRCode.CorrectLevel.Q,
+                'H': QRCode.CorrectLevel.H,
+            };
 
             // Dosya adını belirle
             let downloadName;
             if (data.customtext && !data.karekodno && !data.tedas && !data.marka && !data.flag && !data.model && !data.modelkodu && !data.serino && !data.imaltarihi) {
-                downloadName = `qr_${data.customtext}.${extension}`;
+                downloadName = `qr_${data.customtext}`;
             } else {
-                downloadName = `qr_${data.karekodno}.${extension}`;
+                downloadName = `qr_${data.karekodno}`;
             }
 
-            a.download = downloadName;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
+            if (format === 'png') {
+                const tempDiv = document.createElement('div');
+                const qr = new QRCode(tempDiv, {
+                    text: qrText,
+                    width: 280 * 10,
+                    height: 280 * 10,
+                    colorDark: '#000000',
+                    colorLight: '#FFFFFF',
+                    correctLevel: errorLevelMap[data.error_level] || QRCode.CorrectLevel.L
+                });
 
-            showStatus('✓ İndirme başladı', 'valid');
+                setTimeout(() => {
+                    const img = tempDiv.querySelector('img');
+                    if (img) {
+                        const link = document.createElement('a');
+                        link.href = img.src;
+                        link.download = `${downloadName}.png`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        showStatus('✓ İndirme başladı', 'valid');
+                    }
+                }, 200);
+
+            } else if (format === 'dxf') {
+                const tempDiv = document.createElement('div');
+                const qr = new QRCode(tempDiv, {
+                    text: qrText,
+                    width: 280,
+                    height: 280,
+                    colorDark: '#000000',
+                    colorLight: '#FFFFFF',
+                    correctLevel: errorLevelMap[data.error_level] || QRCode.CorrectLevel.L
+                });
+
+                setTimeout(() => {
+                    const img = tempDiv.querySelector('img');
+                    if (img) {
+                        generateDXF(img, parseInt(sizeMm.value), downloadName);
+                        showStatus('✓ İndirme başladı', 'valid');
+                    }
+                }, 200);
+            }
 
         } catch (error) {
             console.error('Error:', error);
             alert('Hata: ' + error.message);
         }
+    }
+
+    function generateDXF(imgElement, sizeMm, filename) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = imgElement.width;
+        canvas.height = imgElement.height;
+
+        ctx.drawImage(imgElement, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+
+        const entities = [];
+        const blockSize = sizeMm / (canvas.width / 25.4);
+
+        for (let i = 0; i < data.length; i += 4) {
+            const red = data[i];
+            const green = data[i + 1];
+            const blue = data[i + 2];
+
+            if (red < 128 || green < 128 || blue < 128) {
+                const pixelIndex = i / 4;
+                const x = (pixelIndex % canvas.width) * blockSize;
+                const y = Math.floor(pixelIndex / canvas.width) * blockSize;
+
+                entities.push({
+                    type: 'LWPOLYLINE',
+                    points: [
+                        [x, y],
+                        [x + blockSize, y],
+                        [x + blockSize, y + blockSize],
+                        [x, y + blockSize]
+                    ],
+                    isClosed: true,
+                    layer: 'QR'
+                });
+            }
+        }
+
+        const dxfContent = createDXFContent(entities);
+        const blob = new Blob([dxfContent], { type: 'application/dxf' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${filename}.dxf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }
+
+    function createDXFContent(entities) {
+        let content = `999
+DXF
+0
+SECTION
+2
+HEADER
+9
+$ACADVER
+1
+AC1021
+9
+$EXTMIN
+10
+0
+20
+0
+30
+0
+9
+$EXTMAX
+10
+1000
+20
+1000
+30
+0
+0
+ENDSEC
+0
+SECTION
+2
+ENTITIES
+`;
+
+        entities.forEach((entity, index) => {
+            if (entity.type === 'LWPOLYLINE') {
+                content += `0
+LWPOLYLINE
+8
+${entity.layer}
+90
+${entity.points.length}
+70
+${entity.isClosed ? 1 : 0}
+`;
+                entity.points.forEach(point => {
+                    content += `10
+${point[0]}
+20
+${point[1]}
+`;
+                });
+            }
+        });
+
+        content += `0
+ENDSEC
+0
+EOF
+`;
+        return content;
     }
 
     if (exportDxfBtn) {
