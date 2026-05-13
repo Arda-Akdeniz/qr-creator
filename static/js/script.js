@@ -363,12 +363,72 @@ document.addEventListener('DOMContentLoaded', function() {
                         showStatus('✓ İndirme başladı', 'valid');
                     }
                 }, 200);
+
+            } else if (format === 'svg') {
+                const mmToPixel = sizeMm.value * (96 / 25.4);
+                const svgSize = Math.round(mmToPixel);
+                const tempDiv = document.createElement('div');
+                const qr = new QRCode(tempDiv, {
+                    text: qrText,
+                    width: svgSize,
+                    height: svgSize,
+                    colorDark: '#000000',
+                    colorLight: '#FFFFFF',
+                    correctLevel: errorLevelMap[data.error_level] || QRCode.CorrectLevel.L
+                });
+
+                setTimeout(() => {
+                    const img = tempDiv.querySelector('img');
+                    if (img) {
+                        generateSVG(img, svgSize, downloadName);
+                        showStatus('✓ İndirme başladı', 'valid');
+                    }
+                }, 200);
             }
 
         } catch (error) {
             console.error('Error:', error);
             alert('Hata: ' + error.message);
         }
+    }
+
+    function generateSVG(imgElement, size, filename) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = size;
+        canvas.height = size;
+
+        ctx.drawImage(imgElement, 0, 0);
+        const imageData = ctx.getImageData(0, 0, size, size);
+        const data = imageData.data;
+
+        let svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`;
+        svgContent += `<rect width="${size}" height="${size}" fill="white"/>`;
+
+        for (let i = 0; i < data.length; i += 4) {
+            const red = data[i];
+            const green = data[i + 1];
+            const blue = data[i + 2];
+
+            if (red < 128 || green < 128 || blue < 128) {
+                const pixelIndex = i / 4;
+                const x = pixelIndex % size;
+                const y = Math.floor(pixelIndex / size);
+                svgContent += `<rect x="${x}" y="${y}" width="1" height="1" fill="black"/>`;
+            }
+        }
+
+        svgContent += `</svg>`;
+
+        const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${filename}.svg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     }
 
     function generateDXF(imgElement, sizeMm, filename) {
@@ -490,6 +550,11 @@ EOF
 
     if (exportPngBtn) {
         exportPngBtn.addEventListener('click', () => exportFile('png'));
+    }
+
+    const exportSvgBtn = document.getElementById('exportSvgBtn');
+    if (exportSvgBtn) {
+        exportSvgBtn.addEventListener('click', () => exportFile('svg'));
     }
 
     // Digital face eye tracking - optimized
