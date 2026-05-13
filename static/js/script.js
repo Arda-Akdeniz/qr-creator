@@ -207,7 +207,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                         </div>
                     `;
-                    sizeText.textContent = `• Boyut: ${(280 / 25.4).toFixed(1)} mm`;
+                    sizeText.textContent = `• Boyut: ${sizeMm.value} mm`;
                     showStatus('✓ Geçerli', 'valid');
                     initializeFaceInteractions();
                 }
