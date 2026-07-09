@@ -96,7 +96,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return customtext;
         } else if (vals.karekodno && vals.tedas && vals.marka && vals.flag && vals.model && vals.modelkodu && vals.serino && vals.imaltarihi) {
             vals.serino = vals.serino.replace(/\D/g, '').padStart(9, '0');
-            vals.imaltarihi = vals.imaltarihi.length === 4 ? vals.imaltarihi.slice(-2) : vals.imaltarihi.padStart(2, '0');
+            vals.imaltarihi = vals.imaltarihi.length === 4 ? vals.imaltarihi : vals.imaltarihi.padStart(2, '0');
 
             let qr_text = `||KAREKODNO_${vals.karekodno}|TEDASKIRILIM_${vals.tedas}|MARKA_${vals.marka}|FLAG_${vals.flag}|MODEL_${vals.model}|MODELKODU_${vals.modelkodu}|SERINO_${vals.serino}|IMALTARIHI_${vals.imaltarihi}||`;
 
