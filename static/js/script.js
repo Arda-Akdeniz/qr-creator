@@ -15,9 +15,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const qrPreview = document.getElementById('qrPreview');
     const statusText = document.getElementById('statusText');
     const sizeText = document.getElementById('sizeText');
-    const previewText = document.getElementById('previewText');
+    const qrTextDisplay = document.getElementById('qrTextDisplay');
+    const qrTextContent = document.getElementById('qrTextContent');
+    const copyQrTextBtn = document.getElementById('copyQrTextBtn');
 
     let debounceTimer;
+    let isRecording = false;
+    let recordedTexts = [];
 
     // Check if ANY TEDAŞ QR KOD field has data
     function isTedasQrFilled() {
@@ -162,9 +166,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </div>
             `;
+            qrTextDisplay.style.display = 'none';
             initializeFaceInteractions();
             return;
         }
+
+        qrTextContent.textContent = qrText;
+        qrTextDisplay.style.display = 'block';
 
         try {
             const errorLevelMap = {
@@ -618,6 +626,72 @@ EOF
                     face.classList.remove('damaged');
                 }, 600);
             }
+        });
+    }
+
+    // Copy QR text to clipboard
+    if (copyQrTextBtn) {
+        copyQrTextBtn.addEventListener('click', () => {
+            const text = qrTextContent.textContent;
+            if (text) {
+                navigator.clipboard.writeText(text).then(() => {
+                    const originalText = copyQrTextBtn.innerHTML;
+                    copyQrTextBtn.innerHTML = '<i class="fas fa-check"></i> Kopyalandı!';
+                    setTimeout(() => {
+                        copyQrTextBtn.innerHTML = originalText;
+                    }, 2000);
+                }).catch(() => {
+                    alert('Kopyalama başarısız oldu');
+                });
+            }
+        });
+    }
+
+    // Save current QR text
+    const saveQrTextBtn = document.getElementById('saveQrTextBtn');
+    if (saveQrTextBtn) {
+        saveQrTextBtn.addEventListener('click', () => {
+            const currentText = qrTextContent.textContent;
+            if (!currentText) {
+                alert('Kaydedilecek metin yok. Lütfen QR kod oluşturun.');
+                return;
+            }
+
+            recordedTexts.push(currentText);
+
+            const downloadBtn = document.getElementById('downloadSavedBtn');
+            if (downloadBtn) {
+                downloadBtn.disabled = false;
+            }
+
+            showStatus(`✓ Metin kaydedildi (Toplam: ${recordedTexts.length})`, 'valid');
+        });
+    }
+
+    // Download saved QR texts
+    const downloadSavedBtn = document.getElementById('downloadSavedBtn');
+    if (downloadSavedBtn) {
+        downloadSavedBtn.disabled = true;
+        downloadSavedBtn.addEventListener('click', () => {
+            if (recordedTexts.length === 0) {
+                alert('İndirilecek kaydedilmiş metin yok');
+                return;
+            }
+
+            const textContent = recordedTexts.join('\n');
+            const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `QR_Metinleri_${new Date().toLocaleString('tr-TR').replace(/[:./-]/g, '_')}.txt`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            showStatus(`✓ ${recordedTexts.length} adet metin indirildi`, 'valid');
+            recordedTexts = [];
+            downloadSavedBtn.disabled = true;
         });
     }
 

@@ -105,7 +105,18 @@
                         <span id="statusText" class="status">Tüm alanları doldurun</span>
                         <span id="sizeText" class="size"></span>
                     </div>
+                    <div id="qrTextDisplay" class="qr-text-display" style="display: none;">
+                        <div class="qr-text-header">
+                            <span>Oluşturulan Metin:</span>
+                            <button id="copyQrTextBtn" class="btn-copy" title="Metni kopyala">
+                                <i class="fas fa-copy"></i> Kopyala
+                            </button>
+                        </div>
+                        <div id="qrTextContent" class="qr-text-content"></div>
+                    </div>
                     <div class="button-group">
+                        <button id="saveQrTextBtn" class="btn-save"><i class="fas fa-bookmark"></i> Kaydet</button>
+                        <button id="downloadSavedBtn" class="btn-download"><i class="fas fa-download"></i> İndir</button>
                         <button id="exportDxfBtn" class="btn-secondary"><i class="fas fa-download"></i> DXF olarak indir</button>
                         <button id="exportPngBtn" class="btn-secondary"><i class="fas fa-download"></i> PNG olarak indir</button>
                         <button id="exportSvgBtn" class="btn-secondary"><i class="fas fa-download"></i> SVG olarak indir</button>
