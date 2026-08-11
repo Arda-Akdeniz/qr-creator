@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Creator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="./static/css/styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://unpkg.com/dxf@0.0.21/dist/dxf.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>QR CREATOR</h1>
+        </header>
+
+        <main>
+            <div class="content">
+                <!-- Input Panel -->
+                <div class="input-panel">
+                    <h2>QR VERİ GİR</h2>
+
+                    <!-- TEDAŞ QR KOD -->
+                    <div class="field-group collapsible-section">
+                        <h3 class="section-header" onclick="toggleSection(this)">
+                            <i class="fas fa-chevron-down"></i> TEDAŞ QR KOD
+                        </h3>
+                        <div class="section-content">
+                        <div class="form-field">
+                            <label>KAREKOD NO</label>
+                            <input type="text" id="karekodno" placeholder="Karekod numarası gir...">
+                        </div>
+                        <div class="form-field">
+                            <label>SERİ NO</label>
+                            <input type="text" id="serino" placeholder="Seri numarası gir...">
+                        </div>
+                        <div class="form-field">
+                            <label>İMAL YILI</label>
+                            <input type="text" id="imaltarihi" placeholder="İmal yılını gir...">
+                        </div>
+                        <div class="form-field">
+                            <label>TEDAŞ KIRILIM</label>
+                            <input type="text" id="tedas" placeholder="TEDAŞ kırılımını gir...">
+                        </div>
+                        <div class="form-field">
+                            <label>MARKA</label>
+                            <input type="text" id="marka" placeholder="Markayı gir...">
+                        </div>
+                        <div class="form-field">
+                            <label>FLAG</label>
+                            <input type="text" id="flag" placeholder="Flag değerini gir...">
+                        </div>
+                        <div class="form-field">
+                            <label>MODEL</label>
+                            <input type="text" id="model" placeholder="Model gir...">
+                        </div>
+                        <div class="form-field">
+                            <label>MODEL KODU</label>
+                            <input type="text" id="modelkodu" placeholder="Model kodunu gir...">
+                        </div>
+                        </div>
+                    </div>
+
+                    <!-- İsteğe Bağlı -->
+                    <div class="field-group collapsible-section">
+                        <h3 class="section-header" onclick="toggleSection(this)">
+                            <i class="fas fa-chevron-down"></i> İSTEĞE BAĞLI
+                        </h3>
+                        <div class="section-content">
+                        <div class="form-field">
+                            <label>ÖZEL METİN (İSTEĞE BAĞLI)</label>
+                            <input type="text" id="customtext" placeholder="Herhangi bir metni gir...">
+                        </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Preview Panel -->
+                <div class="preview-panel">
+                    <h2>QR KOD ÖNİZLEMESİ</h2>
+                    <div class="preview-container">
+                        <div id="qrPreview" class="qr-preview">
+                            <div class="placeholder-animation">
+                                <div class="animated-dots">
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                </div>
+                                <div class="digital-face">
+                                    <div class="face">
+                                        <div class="eye left-eye">
+                                            <div class="pupil left-pupil"></div>
+                                        </div>
+                                        <div class="eye right-eye">
+                                            <div class="pupil right-pupil"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="preview-info">
+                        <span id="statusText" class="status">Tüm alanları doldurun</span>
+                        <span id="sizeText" class="size"></span>
+                    </div>
+                    <div class="button-group">
+                        <button id="exportDxfBtn" class="btn-secondary"><i class="fas fa-download"></i> DXF olarak indir</button>
+                        <button id="exportPngBtn" class="btn-secondary"><i class="fas fa-download"></i> PNG olarak indir</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Bar -->
+            <div class="settings-bar">
+                <div class="setting-group">
+                    <label>HATA DÜZELTME:</label>
+                    <select id="errorLevel">
+                        <option value="L">L (Düşük %7)</option>
+                        <option value="M">M (Orta %15)</option>
+                        <option value="Q">Q (Yüksek %25)</option>
+                        <option value="H">H (Çok Yüksek %30)</option>
+                    </select>
+                </div>
+                <div class="setting-group">
+                    <label>BOYUT (MM):</label>
+                    <input type="number" id="sizeMm" min="5" max="200" value="20">
+                </div>
+            </div>
+
+            <!-- Serial Number Generator -->
+            <div class="series-generator-section">
+                <h2><i class="fas fa-list-ol"></i> SERİ NUMARASI OLUŞTUR</h2>
+                <div class="series-generator-content">
+                    <div class="series-input-group">
+                        <div class="series-field">
+                            <label>ÜRÜN TİPİ</label>
+                            <select id="productTypeGen">
+                                <option value="normal">Normal Ürün (6 Haneli)</option>
+                                <option value="electric_meter" selected>Elektronik Elektrik Sayacı (9 Haneli)</option>
+                            </select>
+                        </div>
+                        <div class="series-field">
+                            <label>BAŞLANGIÇ</label>
+                            <input type="number" id="serino_start" placeholder="0" min="0">
+                        </div>
+                        <div class="series-field">
+                            <label>BİTİŞ</label>
+                            <input type="number" id="serino_end" placeholder="10" min="0">
+                        </div>
+                        <button id="generateSeriesBtn" class="btn-generate-large"><i class="fas fa-sync"></i> OLUŞTUR</button>
+                    </div>
+                    <div id="seriesOutput" class="series-output-large"></div>
+                    <button id="downloadSeriesBtn" class="btn-download-series" style="display: none;">
+                        <i class="fas fa-download"></i> TXT Olarak İndir
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="./static/js/script.js"></script>
+</body>
+</html>
