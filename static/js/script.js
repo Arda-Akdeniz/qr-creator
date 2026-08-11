@@ -695,6 +695,139 @@ EOF
         });
     }
 
+    // Seri Numarası Aralığı Oluşturma
+    const generateSeriesBtn = document.getElementById('generateSeriesBtn');
+    const seriesOutput = document.getElementById('seriesOutput');
+    const serinoStartInput = document.getElementById('serino_start');
+    const serinoEndInput = document.getElementById('serino_end');
+    const serinoField = document.getElementById('serino');
+    const productTypeGen = document.getElementById('productTypeGen');
+    const downloadSeriesBtn = document.getElementById('downloadSeriesBtn');
+    let generatedSeries = [];
+
+    // Ürün tipine göre seri numarası haneli sayısını belirle
+    function getSerialNumberLength() {
+        return productTypeGen.value === 'electric_meter' ? 9 : 6;
+    }
+
+    function formatSerialNumber(num) {
+        const length = getSerialNumberLength();
+        return String(num).padStart(length, '0');
+    }
+
+    function downloadSeriesToTxt() {
+        if (generatedSeries.length === 0) {
+            alert('İndirilecek seri numarası yok');
+            return;
+        }
+
+        const content = generatedSeries.join('\n');
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+
+        const timestamp = new Date().toLocaleString('tr-TR').replace(/[:./-]/g, '_');
+        const typeText = productTypeGen.value === 'electric_meter' ? '9H' : '6H';
+        link.download = `Seri_Numaralari_${typeText}_${timestamp}.txt`;
+
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }
+
+    function generateSeries() {
+        const startVal = parseInt(serinoStartInput.value);
+        const endVal = parseInt(serinoEndInput.value);
+
+        if (isNaN(startVal) || isNaN(endVal)) {
+            seriesOutput.innerHTML = '<span style="color: var(--error);">Geçerli sayı girin</span>';
+            seriesOutput.classList.remove('empty');
+            return;
+        }
+
+        if (startVal > endVal) {
+            seriesOutput.innerHTML = '<span style="color: var(--error);">Başlangıç bitiş değerinden küçük olmalı</span>';
+            seriesOutput.classList.remove('empty');
+            return;
+        }
+
+        if (endVal - startVal > 1000) {
+            seriesOutput.innerHTML = '<span style="color: var(--error);">Maksimum 1000 adet seri numarası oluşturabilirsiniz</span>';
+            seriesOutput.classList.remove('empty');
+            return;
+        }
+
+        seriesOutput.innerHTML = '';
+        const fragment = document.createDocumentFragment();
+        generatedSeries = [];
+
+        for (let i = startVal; i <= endVal; i++) {
+            const formattedNum = formatSerialNumber(i);
+            generatedSeries.push(formattedNum);
+
+            const item = document.createElement('div');
+            item.className = 'series-item';
+            item.textContent = formattedNum;
+            item.addEventListener('click', () => {
+                serinoField.value = formattedNum;
+                serinoField.dispatchEvent(new Event('input', { bubbles: true }));
+                serinoField.focus();
+            });
+            fragment.appendChild(item);
+        }
+
+        seriesOutput.appendChild(fragment);
+        seriesOutput.classList.remove('empty');
+
+        // İndirme butonunu göster
+        if (downloadSeriesBtn) {
+            downloadSeriesBtn.style.display = 'flex';
+        }
+    }
+
+    if (generateSeriesBtn) {
+        generateSeriesBtn.addEventListener('click', generateSeries);
+    }
+
+    // Enter tuşu ile oluştur
+    if (serinoEndInput) {
+        serinoEndInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                generateSeries();
+            }
+        });
+    }
+
+    // Ürün tipi değiştiğinde
+    if (productTypeGen) {
+        productTypeGen.addEventListener('change', () => {
+            // Önceki seri numaralarını temizle
+            seriesOutput.innerHTML = '';
+            seriesOutput.classList.add('empty');
+            generatedSeries = [];
+
+            // Input'ları temizle
+            serinoStartInput.value = '';
+            serinoEndInput.value = '';
+
+            // İndirme butonunu gizle
+            if (downloadSeriesBtn) {
+                downloadSeriesBtn.style.display = 'none';
+            }
+
+            const length = getSerialNumberLength();
+            const typeText = productTypeGen.value === 'electric_meter' ? '9 haneli' : '6 haneli';
+            showStatus(`Ürün tipi değiştirildi - Seri numarası ${typeText}`, null);
+        });
+    }
+
+    // İndirme butonu event listener'ı
+    if (downloadSeriesBtn) {
+        downloadSeriesBtn.addEventListener('click', downloadSeriesToTxt);
+    }
+
     // Initial state
     showStatus('Tüm alanları doldurun', null);
 });
