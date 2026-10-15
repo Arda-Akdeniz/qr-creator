@@ -6,7 +6,7 @@ function toggleSection(header) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    const fields = ['karekodno', 'tedas', 'marka', 'flag', 'model', 'modelkodu', 'serino', 'imaltarihi'];
+    const fields = ['tedas', 'marka', 'flag', 'model', 'modelkodu', 'serino', 'imaltarihi'];
     const customTextField = document.getElementById('customtext');
     const errorLevel = document.getElementById('errorLevel');
     const sizeMm = document.getElementById('sizeMm');
@@ -68,9 +68,18 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Karekod numarası = TEDAŞ kırılımı + FLAG + imal yılının son 2 hanesi + seri no (9 hane)
+    function buildKarekodNo(data) {
+        const tedas = data.tedas.trim().toUpperCase();
+        const flag = data.flag.trim().toUpperCase();
+        const yil = data.imaltarihi.replace(/\D/g, '').slice(-2);
+        const seri = data.serino.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (!tedas || !flag || !yil || !seri) return '';
+        return `${tedas}${flag}${yil}${seri.padStart(9, '0')}`;
+    }
+
     function getFormData() {
         return {
-            karekodno: document.getElementById('karekodno').value,
             tedas: document.getElementById('tedas').value,
             marka: document.getElementById('marka').value,
             flag: document.getElementById('flag').value,
@@ -83,10 +92,23 @@ document.addEventListener('DOMContentLoaded', function() {
         };
     }
 
+    // QR için zorunlu olup boş kalan alanların etiketlerini döndürür
+    function getMissingFields(data) {
+        const checks = [
+            ['TEDAŞ KIRILIM', data.tedas.trim()],
+            ['MARKA', data.marka.trim()],
+            ['FLAG', data.flag.trim()],
+            ['MODEL', data.model.trim()],
+            ['MODEL KODU', data.modelkodu.trim()],
+            ['SERİ NO', data.serino.replace(/[^A-Za-z0-9]/g, '')],
+            ['İMAL TARİHİ', data.imaltarihi.replace(/\D/g, '')],
+        ];
+        return checks.filter(([, value]) => !value).map(([label]) => label);
+    }
+
     function generateQRText(data) {
         const customtext = data.customtext.trim();
         const vals = {
-            'karekodno': data.karekodno.toUpperCase(),
             'tedas': data.tedas.toUpperCase(),
             'marka': data.marka.toUpperCase(),
             'flag': data.flag.toUpperCase(),
@@ -96,13 +118,16 @@ document.addEventListener('DOMContentLoaded', function() {
             'imaltarihi': data.imaltarihi.toUpperCase(),
         };
 
-        if (customtext && !vals.karekodno && !vals.tedas && !vals.marka && !vals.flag && !vals.model && !vals.modelkodu && !vals.serino && !vals.imaltarihi) {
+        if (customtext && !vals.tedas && !vals.marka && !vals.flag && !vals.model && !vals.modelkodu && !vals.serino && !vals.imaltarihi) {
             return customtext;
-        } else if (vals.karekodno && vals.tedas && vals.marka && vals.flag && vals.model && vals.modelkodu && vals.serino && vals.imaltarihi) {
-            vals.serino = vals.serino.replace(/\D/g, '').padStart(9, '0');
-            vals.imaltarihi = vals.imaltarihi.length === 4 ? vals.imaltarihi : vals.imaltarihi.padStart(2, '0');
+        } else if (vals.tedas && vals.marka && vals.flag && vals.model && vals.modelkodu && vals.serino && vals.imaltarihi.replace(/\D/g, '')) {
+            vals.serino = vals.serino.replace(/[^A-Z0-9]/g, '').padStart(9, '0');
+            // Tarih: sadece rakamlar, boşluk/ayraçlar atılır (ör. 5.30.2026 -> 05302026)
+            vals.imaltarihi = vals.imaltarihi.replace(/\D/g, '');
+            if (vals.imaltarihi.length === 7) vals.imaltarihi = vals.imaltarihi.padStart(8, '0');
+            const karekodno = buildKarekodNo(data);
 
-            let qr_text = `||KAREKODNO_${vals.karekodno}|TEDASKIRILIM_${vals.tedas}|MARKA_${vals.marka}|FLAG_${vals.flag}|MODEL_${vals.model}|MODELKODU_${vals.modelkodu}|SERINO_${vals.serino}|IMALTARIHI_${vals.imaltarihi}||`;
+            let qr_text = `||KAREKODNO_${karekodno}|TEDASKIRILIM_${vals.tedas}|MARKA_${vals.marka}|FLAG_${vals.flag}|MODEL_${vals.model}|MODELKODU_${vals.modelkodu}|SERINO_${vals.serino}|IMALTARIHI_${vals.imaltarihi}||`;
 
             if (customtext) {
                 qr_text += `|OZELMETIN_${customtext}|`;
@@ -146,7 +171,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const qrText = generateQRText(data);
         if (!qrText) {
-            showStatus('Veri giriniz', 'error');
+            const missing = getMissingFields(data);
+            showStatus(missing.length ? `Eksik alanlar: ${missing.join(', ')}` : 'Veri giriniz', 'error');
             qrPreview.innerHTML = `
                 <div class="placeholder-animation">
                     <div class="animated-dots">
@@ -321,10 +347,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Dosya adını belirle
             let downloadName;
-            if (data.customtext && !data.karekodno && !data.tedas && !data.marka && !data.flag && !data.model && !data.modelkodu && !data.serino && !data.imaltarihi) {
+            if (data.customtext && !data.tedas && !data.marka && !data.flag && !data.model && !data.modelkodu && !data.serino && !data.imaltarihi) {
                 downloadName = `qr_${data.customtext}`;
             } else {
-                downloadName = `qr_${data.karekodno}`;
+                downloadName = `qr_${buildKarekodNo(data)}`;
             }
 
             if (format === 'png') {
@@ -827,6 +853,242 @@ EOF
     if (downloadSeriesBtn) {
         downloadSeriesBtn.addEventListener('click', downloadSeriesToTxt);
     }
+
+    // Toplu QR metni oluşturma (sabit bilgiler + seri aralığı + tarih)
+    const batchFieldIds = {
+        tedas: 'batchTedas',
+        marka: 'batchMarka',
+        flag: 'batchFlag',
+        model: 'batchModel',
+        modelkodu: 'batchModelkodu',
+    };
+    const batchFieldLabels = {
+        tedas: 'TEDAŞ KIRILIM',
+        marka: 'MARKA',
+        flag: 'FLAG',
+        model: 'MODEL',
+        modelkodu: 'MODEL KODU',
+    };
+    const batchStartInput = document.getElementById('batchStart');
+    const batchEndInput = document.getElementById('batchEnd');
+    const batchDateInput = document.getElementById('batchDate');
+    const batchDateLabel = document.getElementById('batchDateLabel');
+    const batchDateMode = document.getElementById('batchDateMode');
+    const batchStepWrap = document.getElementById('batchStepWrap');
+    const batchStepInput = document.getElementById('batchStep');
+    const batchDatesWrap = document.getElementById('batchDatesWrap');
+    const batchDatesInput = document.getElementById('batchDates');
+    const batchFillBtn = document.getElementById('batchFillBtn');
+    const batchGenerateBtn = document.getElementById('batchGenerateBtn');
+    const batchStatus = document.getElementById('batchStatus');
+    const batchOutput = document.getElementById('batchOutput');
+    const batchCopyBtn = document.getElementById('batchCopyBtn');
+    const batchDownloadBtn = document.getElementById('batchDownloadBtn');
+    let batchResults = [];
+
+    function setBatchStatus(message, type) {
+        batchStatus.textContent = message;
+        batchStatus.classList.remove('valid', 'error');
+        if (type) batchStatus.classList.add(type);
+    }
+
+    function clearBatchOutput() {
+        batchOutput.innerHTML = '';
+        batchOutput.classList.add('empty');
+        batchResults = [];
+        batchCopyBtn.style.display = 'none';
+        batchDownloadBtn.style.display = 'none';
+    }
+
+    function getBatchFixedData() {
+        const data = {};
+        Object.keys(batchFieldIds).forEach(key => {
+            data[key] = document.getElementById(batchFieldIds[key]).value.trim();
+        });
+        return data;
+    }
+
+    // GG.AA.YYYY metnini Date'e çevirir (geçersizse null)
+    function parseDMY(text) {
+        const m = text.trim().match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+        if (!m) return null;
+        const day = parseInt(m[1]), month = parseInt(m[2]), year = parseInt(m[3]);
+        const date = new Date(Date.UTC(year, month - 1, day));
+        if (date.getUTCDate() !== day || date.getUTCMonth() !== month - 1) return null;
+        return date;
+    }
+
+    // Date'i GG.AA.YYYY olarak biçimler
+    function formatDMY(date) {
+        const dd = String(date.getUTCDate()).padStart(2, '0');
+        const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+        return `${dd}.${mm}.${date.getUTCFullYear()}`;
+    }
+
+    // Ana formdaki sabit bilgileri ve tarihi kopyala
+    batchFillBtn.addEventListener('click', () => {
+        Object.keys(batchFieldIds).forEach(key => {
+            document.getElementById(batchFieldIds[key]).value = document.getElementById(key).value;
+        });
+        batchDateInput.value = document.getElementById('imaltarihi').value;
+        setBatchStatus('Ana formdan dolduruldu', 'valid');
+    });
+
+    // Tarih modu değişince ilgili alanları göster/gizle
+    function updateBatchDateMode() {
+        const mode = batchDateMode.value;
+        batchStepWrap.style.display = mode === 'auto' ? 'flex' : 'none';
+        batchDatesWrap.style.display = mode === 'list' ? 'flex' : 'none';
+        batchDateInput.disabled = mode === 'list';
+        batchDateInput.style.opacity = mode === 'list' ? '0.5' : '1';
+        batchDateLabel.textContent = mode === 'auto' ? 'BAŞLANGIÇ TARİHİ' : 'İMAL TARİHİ';
+    }
+
+    batchDateMode.addEventListener('change', () => {
+        updateBatchDateMode();
+        clearBatchOutput();
+        setBatchStatus('', null);
+    });
+
+    // Seçilen tarih moduna göre her seri için tarihleri hazırlar (hata varsa null)
+    function buildBatchDates(count) {
+        const mode = batchDateMode.value;
+
+        if (mode === 'list') {
+            const dates = batchDatesInput.value.split('\n').map(d => d.trim()).filter(Boolean);
+            if (dates.length !== count) {
+                setBatchStatus(`Tarih sayısı (${dates.length}) seri sayısıyla (${count}) eşleşmiyor`, 'error');
+                return null;
+            }
+            return dates;
+        }
+
+        if (mode === 'auto') {
+            const start = parseDMY(batchDateInput.value);
+            if (!start) {
+                setBatchStatus('Başlangıç tarihi geçersiz (GG.AA.YYYY)', 'error');
+                return null;
+            }
+            const step = parseInt(batchStepInput.value);
+            if (isNaN(step) || step < 1) {
+                setBatchStatus('Artış en az 1 gün olmalı', 'error');
+                return null;
+            }
+            return Array.from({ length: count }, (_, k) => {
+                const d = new Date(start);
+                d.setUTCDate(d.getUTCDate() + k * step);
+                return formatDMY(d);
+            });
+        }
+
+        const single = batchDateInput.value.trim();
+        if (!single) {
+            setBatchStatus('İmal tarihi girin', 'error');
+            return null;
+        }
+        return Array(count).fill(single);
+    }
+
+    function generateBatchQRTexts() {
+        const start = parseInt(batchStartInput.value);
+        const end = parseInt(batchEndInput.value);
+
+        if (isNaN(start) || isNaN(end)) {
+            setBatchStatus('Başlangıç ve bitiş seri numarası girin', 'error');
+            return clearBatchOutput();
+        }
+        if (start > end) {
+            setBatchStatus('Başlangıç bitiş değerinden küçük olmalı', 'error');
+            return clearBatchOutput();
+        }
+        if (end - start > 1000) {
+            setBatchStatus('Maksimum 1000 adet QR metni oluşturabilirsiniz', 'error');
+            return clearBatchOutput();
+        }
+
+        const fixed = getBatchFixedData();
+        const missing = Object.keys(batchFieldLabels)
+            .filter(key => !fixed[key])
+            .map(key => batchFieldLabels[key]);
+        if (missing.length) {
+            setBatchStatus(`Sabit alanlar eksik: ${missing.join(', ')}`, 'error');
+            return clearBatchOutput();
+        }
+
+        const count = end - start + 1;
+        const dates = buildBatchDates(count);
+        if (!dates) return clearBatchOutput();
+
+        const results = [];
+        for (let i = start; i <= end; i++) {
+            const k = i - start;
+            const serino = formatSerialNumber(i);
+            const text = generateQRText({
+                ...fixed,
+                serino,
+                imaltarihi: dates[k],
+                customtext: '',
+                error_level: errorLevel.value,
+            });
+            if (!text) {
+                setBatchStatus(`Seri ${serino} için tarih geçersiz: "${dates[k]}"`, 'error');
+                return clearBatchOutput();
+            }
+            results.push({ serino, text, date: dates[k] });
+        }
+
+        batchResults = results;
+        batchOutput.innerHTML = '';
+        const fragment = document.createDocumentFragment();
+        results.forEach(({ serino, text, date }) => {
+            const row = document.createElement('div');
+            row.className = 'batch-row';
+            const serial = document.createElement('span');
+            serial.className = 'batch-serial';
+            serial.textContent = serino;
+            const dateEl = document.createElement('span');
+            dateEl.className = 'batch-date';
+            dateEl.textContent = date;
+            const content = document.createElement('code');
+            content.textContent = text;
+            row.append(serial, dateEl, content);
+            fragment.appendChild(row);
+        });
+        batchOutput.appendChild(fragment);
+        batchOutput.classList.remove('empty');
+        batchCopyBtn.style.display = 'flex';
+        batchDownloadBtn.style.display = 'flex';
+        setBatchStatus(`✓ ${results.length} adet QR metni oluşturuldu`, 'valid');
+    }
+
+    function getBatchTextLines() {
+        return batchResults.map(r => r.text).join('\n');
+    }
+
+    batchGenerateBtn.addEventListener('click', generateBatchQRTexts);
+
+    batchCopyBtn.addEventListener('click', async () => {
+        if (batchResults.length === 0) return;
+        try {
+            await navigator.clipboard.writeText(getBatchTextLines());
+            setBatchStatus(`✓ ${batchResults.length} adet metin kopyalandı`, 'valid');
+        } catch (err) {
+            setBatchStatus('Kopyalama başarısız oldu', 'error');
+        }
+    });
+
+    batchDownloadBtn.addEventListener('click', () => {
+        if (batchResults.length === 0) return;
+        const blob = new Blob([getBatchTextLines()], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `QR_Metinleri_${batchResults.length}_adet.txt`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    });
 
     // Initial state
     showStatus('Tüm alanları doldurun', null);

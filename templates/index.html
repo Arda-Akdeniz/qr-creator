@@ -29,16 +29,12 @@
                         </h3>
                         <div class="section-content">
                         <div class="form-field">
-                            <label>KAREKOD NO</label>
-                            <input type="text" id="karekodno" placeholder="Karekod numarası gir...">
-                        </div>
-                        <div class="form-field">
                             <label>SERİ NO</label>
                             <input type="text" id="serino" placeholder="Seri numarası gir...">
                         </div>
                         <div class="form-field">
-                            <label>İMAL YILI</label>
-                            <input type="text" id="imaltarihi" placeholder="İmal yılını gir...">
+                            <label>İMAL TARİHİ</label>
+                            <input type="text" id="imaltarihi" placeholder="İmal tarihini gir...">
                         </div>
                         <div class="form-field">
                             <label>TEDAŞ KIRILIM</label>
@@ -105,9 +101,21 @@
                         <span id="statusText" class="status">Tüm alanları doldurun</span>
                         <span id="sizeText" class="size"></span>
                     </div>
+                    <div id="qrTextDisplay" class="qr-text-display" style="display: none;">
+                        <div class="qr-text-header">
+                            <span>Oluşturulan Metin:</span>
+                            <button id="copyQrTextBtn" class="btn-copy" title="Metni kopyala">
+                                <i class="fas fa-copy"></i> Kopyala
+                            </button>
+                        </div>
+                        <div id="qrTextContent" class="qr-text-content"></div>
+                    </div>
                     <div class="button-group">
+                        <button id="saveQrTextBtn" class="btn-save"><i class="fas fa-bookmark"></i> Kaydet</button>
+                        <button id="downloadSavedBtn" class="btn-download"><i class="fas fa-download"></i> İndir</button>
                         <button id="exportDxfBtn" class="btn-secondary"><i class="fas fa-download"></i> DXF olarak indir</button>
                         <button id="exportPngBtn" class="btn-secondary"><i class="fas fa-download"></i> PNG olarak indir</button>
+                        <button id="exportSvgBtn" class="btn-secondary"><i class="fas fa-download"></i> SVG olarak indir</button>
                     </div>
                 </div>
             </div>
@@ -155,6 +163,80 @@
                     <button id="downloadSeriesBtn" class="btn-download-series" style="display: none;">
                         <i class="fas fa-download"></i> TXT Olarak İndir
                     </button>
+                </div>
+            </div>
+            <!-- Batch QR Text Generator -->
+            <div class="series-generator-section batch-qr-section">
+                <h2><i class="fas fa-layer-group"></i> TOPLU QR METNİ OLUŞTUR</h2>
+                <div class="series-generator-content">
+                    <div class="batch-fixed-grid">
+                        <div class="series-field">
+                            <label>TEDAŞ KIRILIM</label>
+                            <input type="text" id="batchTedas" placeholder="258106">
+                        </div>
+                        <div class="series-field">
+                            <label>MARKA</label>
+                            <input type="text" id="batchMarka" placeholder="master meter">
+                        </div>
+                        <div class="series-field">
+                            <label>FLAG</label>
+                            <input type="text" id="batchFlag" placeholder="mas">
+                        </div>
+                        <div class="series-field">
+                            <label>MODEL</label>
+                            <input type="text" id="batchModel" placeholder="m1-pro">
+                        </div>
+                        <div class="series-field">
+                            <label>MODEL KODU</label>
+                            <input type="text" id="batchModelkodu" placeholder="PMD/CAN/0626">
+                        </div>
+                    </div>
+                    <div class="batch-fill-row">
+                        <button type="button" id="batchFillBtn" class="btn-batch-fill"><i class="fas fa-arrow-down"></i> Ana formdan doldur</button>
+                    </div>
+                    <div class="series-input-group">
+                        <div class="series-field">
+                            <label>BAŞLANGIÇ</label>
+                            <input type="number" id="batchStart" placeholder="0" min="0">
+                        </div>
+                        <div class="series-field">
+                            <label>BİTİŞ</label>
+                            <input type="number" id="batchEnd" placeholder="10" min="0">
+                        </div>
+                        <div class="series-field">
+                            <label id="batchDateLabel">İMAL TARİHİ</label>
+                            <input type="text" id="batchDate" placeholder="30.05.2026">
+                        </div>
+                        <button id="batchGenerateBtn" class="btn-generate-large"><i class="fas fa-sync"></i> OLUŞTUR</button>
+                    </div>
+                    <div class="batch-date-mode">
+                        <div class="series-field">
+                            <label>TARİH MODU</label>
+                            <select id="batchDateMode">
+                                <option value="fixed">Sabit tarih (hepsi aynı)</option>
+                                <option value="auto">Her seri için otomatik artsın</option>
+                                <option value="list">Elle liste (her satıra bir tarih)</option>
+                            </select>
+                        </div>
+                        <div id="batchStepWrap" class="series-field" style="display: none;">
+                            <label>ARTIŞ (GÜN)</label>
+                            <input type="number" id="batchStep" value="1" min="1">
+                        </div>
+                    </div>
+                    <div id="batchDatesWrap" class="series-field batch-dates-wrap" style="display: none;">
+                        <label>TARİHLER (HER SATIRA BİR TARİH, SERİ SIRASIYLA)</label>
+                        <textarea id="batchDates" rows="4" placeholder="30.05.2026&#10;31.05.2026&#10;01.06.2026"></textarea>
+                    </div>
+                    <div id="batchStatus" class="batch-status"></div>
+                    <div id="batchOutput" class="batch-output empty"></div>
+                    <div class="batch-actions">
+                        <button id="batchCopyBtn" class="btn-download-series" style="display: none;">
+                            <i class="fas fa-copy"></i> Kopyala
+                        </button>
+                        <button id="batchDownloadBtn" class="btn-download-series" style="display: none;">
+                            <i class="fas fa-download"></i> TXT Olarak İndir
+                        </button>
+                    </div>
                 </div>
             </div>
         </main>

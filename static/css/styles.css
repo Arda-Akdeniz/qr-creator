@@ -1124,3 +1124,166 @@ main {
         grid-column: 1 / -1;
     }
 }
+
+/* Toplu QR metni oluşturma */
+.batch-fixed-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 15px;
+}
+
+.batch-fill-row {
+    display: flex;
+    justify-content: flex-end;
+    margin: 14px 0 20px;
+}
+
+.btn-batch-fill {
+    padding: 8px 16px;
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-batch-fill:hover {
+    background: rgba(45, 212, 191, 0.1);
+}
+
+.batch-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 18px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.batch-dates-wrap {
+    margin-top: 12px;
+}
+
+.batch-dates-wrap textarea {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    padding: 10px 12px;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    resize: vertical;
+}
+
+.batch-status {
+    margin-top: 14px;
+    min-height: 18px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.batch-status.valid {
+    color: var(--accent);
+}
+
+.batch-status.error {
+    color: var(--error);
+}
+
+.batch-output {
+    margin-top: 16px;
+    background: rgba(20, 184, 166, 0.05);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.batch-output.empty {
+    display: none;
+}
+
+.batch-row {
+    display: flex;
+    gap: 14px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+}
+
+.batch-row:last-child {
+    border-bottom: none;
+}
+
+.batch-serial {
+    flex: 0 0 90px;
+    color: var(--accent);
+    font-weight: 600;
+    font-family: 'Courier New', monospace;
+}
+
+.batch-row code {
+    color: var(--text-primary);
+    word-break: break-all;
+    font-family: 'Courier New', monospace;
+}
+
+.batch-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+}
+
+@media (max-width: 960px) {
+    .batch-fixed-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .batch-fixed-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.batch-date-mode {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+}
+
+.batch-date-mode .series-field {
+    flex: 1 1 260px;
+}
+
+.batch-date-mode select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    padding: 10px 12px;
+    font-size: 13px;
+}
+
+.batch-date {
+    flex: 0 0 90px;
+    color: var(--text-secondary);
+    font-family: 'Courier New', monospace;
+}
+
+/* Açılır liste seçenekleri: tarayıcının beyaz arka planında okunabilir kalsın */
+select {
+    color-scheme: dark;
+}
+
+select option {
+    background: var(--surface);
+    color: var(--text-primary);
+}
