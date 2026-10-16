@@ -298,34 +298,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize face interactions
     function initializeFaceInteractions() {
-        const newLeftPupil = document.querySelector('.left-pupil');
-        const newRightPupil = document.querySelector('.right-pupil');
-        const newLeftEye = document.querySelector('.left-eye');
-        const newRightEye = document.querySelector('.right-eye');
-        const newFace = document.querySelector('.face');
-
-        // Eye tracking
-        if (newLeftPupil && newRightPupil && newLeftEye && newRightEye) {
-            document.addEventListener('mousemove', (e) => {
-                const mouseX = e.clientX;
-                const mouseY = e.clientY;
-                updatePupilSmooth(newLeftPupil, newLeftEye, mouseX, mouseY);
-                updatePupilSmooth(newRightPupil, newRightEye, mouseX, mouseY);
-            });
-        }
-
-        // Damage effect
-        if (newFace) {
-            newFace.addEventListener('click', () => {
-                newFace.classList.add('damaged');
-                newLeftPupil.textContent = '';
-                newRightPupil.textContent = '';
-
-                setTimeout(() => {
-                    newFace.classList.remove('damaged');
-                }, 600);
-            });
-        }
+        syncFaceState();
     }
 
     function exportFile(format) {
@@ -595,32 +568,44 @@ EOF
         exportSvgBtn.addEventListener('click', () => exportFile('svg'));
     }
 
-    // Digital face eye tracking - optimized
-    const leftPupil = document.querySelector('.left-pupil');
-    const rightPupil = document.querySelector('.right-pupil');
-    const leftEye = document.querySelector('.left-eye');
-    const rightEye = document.querySelector('.right-eye');
-    const face = document.querySelector('.face');
+    // Robot yüzü etkileşimi: 3 kez vurulunca sinirlenir, imleç yaklaşınca mavi kılıçla savunur
+    const FACE_HITS_TO_ANGER = 3;
+    const ANGER_CALM_DELAY_MS = 5000;   // son vuruştan sonra sakinleşme süresi
+    const SWORD_RANGE_PX = 220;
+    const SWORD_ORBIT_PX = 58;     // kılıç tutma noktasının yüz merkezine uzaklığı
+    const SWORD_FOLLOW = 0.18;     // kılıcın imleci takip hızı (0-1)
+    const SLASH_RANGE_PX = 90;
+    const SLASH_COOLDOWN_MS = 450;
 
+    let faceHits = 0;
+    let isAngry = false;
+    let angerTimer = null;
+    let damageTimer = null;
     let mouseX = 0;
     let mouseY = 0;
-    let animationFrameId = null;
-    let isDamaged = false;
+    let eyeFrameId = null;
+    let swordLoopId = null;
+    let swordX = null;             // kılıç tutma noktası (yüz içi px)
+    let swordY = null;
+    let lastSlashAt = 0;
 
-    document.addEventListener('mousemove', (e) => {
-        mouseX = e.clientX;
-        mouseY = e.clientY;
+    const SWORD_SVG = `
+        <svg class="robot-sword-blade" width="90" height="16" viewBox="0 0 90 16" aria-hidden="true">
+            <defs>
+                <linearGradient id="robotBladeGradient" x1="0" x2="1" y1="0" y2="0">
+                    <stop offset="0" stop-color="#DC2626"/>
+                    <stop offset="1" stop-color="#FECACA"/>
+                </linearGradient>
+            </defs>
+            <rect x="0" y="6" width="12" height="4" rx="1" fill="#450A0A"/>
+            <rect x="10" y="2" width="4" height="12" rx="1" fill="#991B1B"/>
+            <polygon points="14,4 84,6.5 90,8 84,9.5 14,12" fill="url(#robotBladeGradient)"/>
+        </svg>`;
 
-        if (!animationFrameId) {
-            animationFrameId = requestAnimationFrame(() => {
-                if (leftPupil && rightPupil && leftEye && rightEye) {
-                    updatePupilSmooth(leftPupil, leftEye, mouseX, mouseY);
-                    updatePupilSmooth(rightPupil, rightEye, mouseX, mouseY);
-                }
-                animationFrameId = null;
-            });
-        }
-    });
+    // Önizleme her render edildiğinde robot yeniden oluşturulduğu için her seferinde sorgulanır
+    function getActiveFace() {
+        return document.querySelector('#qrPreview .face');
+    }
 
     function updatePupilSmooth(pupil, eye, mouseX, mouseY) {
         const eyeRect = eye.getBoundingClientRect();
@@ -639,21 +624,217 @@ EOF
         pupil.style.top = `calc(50% + ${pupilY}px)`;
     }
 
-    // Face damage interaction
-    if (face) {
-        face.addEventListener('click', () => {
-            if (!isDamaged) {
-                isDamaged = true;
-                face.classList.add('damaged');
-
-                // Recover after animation
-                setTimeout(() => {
-                    isDamaged = false;
-                    face.classList.remove('damaged');
-                }, 600);
-            }
+    function updateFaceEyes(face) {
+        [['.left-pupil', '.left-eye'], ['.right-pupil', '.right-eye']].forEach(([pupilSel, eyeSel]) => {
+            const pupil = face.querySelector(pupilSel);
+            const eye = face.querySelector(eyeSel);
+            if (pupil && eye) updatePupilSmooth(pupil, eye, mouseX, mouseY);
         });
     }
+
+    function ensureSword(face) {
+        let sword = face.querySelector('.robot-sword');
+        if (!sword) {
+            sword = document.createElement('div');
+            sword.className = 'robot-sword';
+            sword.innerHTML = SWORD_SVG;
+            face.appendChild(sword);
+        }
+        return sword;
+    }
+
+    function removeSword(face) {
+        const sword = face.querySelector('.robot-sword');
+        if (sword) sword.remove();
+        swordX = null;
+        swordY = null;
+    }
+
+    function startSwordLoop() {
+        if (swordLoopId === null) swordLoopId = requestAnimationFrame(tickSword);
+    }
+
+    function stopSwordLoop() {
+        if (swordLoopId !== null) cancelAnimationFrame(swordLoopId);
+        swordLoopId = null;
+    }
+
+    // Kızgınken kılıç her karede imlece doğru süzülür
+    function tickSword() {
+        swordLoopId = null;
+        const face = getActiveFace();
+        if (!isAngry || !face) return;
+        updateSword(face);
+        swordLoopId = requestAnimationFrame(tickSword);
+    }
+
+    function updateSword(face) {
+        const rect = face.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const deltaX = mouseX - centerX;
+        const deltaY = mouseY - centerY;
+        const distance = Math.hypot(deltaX, deltaY);
+
+        const sword = ensureSword(face);
+        if (distance > SWORD_RANGE_PX) {
+            sword.style.display = 'none';
+            return;
+        }
+        sword.style.display = 'block';
+
+        // Tutma noktası yüzün etrafında, imlecin olduğu yöne doğru hedeflenir
+        const dirX = distance ? deltaX / distance : 1;
+        const dirY = distance ? deltaY / distance : 0;
+        const targetX = face.offsetWidth / 2 + dirX * SWORD_ORBIT_PX;
+        const targetY = face.offsetHeight / 2 + dirY * SWORD_ORBIT_PX;
+        if (swordX === null) {
+            swordX = targetX;
+            swordY = targetY;
+        }
+        swordX += (targetX - swordX) * SWORD_FOLLOW;
+        swordY += (targetY - swordY) * SWORD_FOLLOW;
+
+        sword.style.left = `${swordX}px`;
+        sword.style.top = `${swordY}px`;
+        const angleDeg = Math.atan2(deltaY, deltaX) * 180 / Math.PI;
+        sword.style.transform = `translateY(-50%) rotate(${angleDeg}deg)`;
+
+        const now = performance.now();
+        if (distance <= SLASH_RANGE_PX && now - lastSlashAt > SLASH_COOLDOWN_MS) {
+            lastSlashAt = now;
+            const blade = sword.querySelector('.robot-sword-blade');
+            blade.classList.remove('slash');
+            void blade.offsetWidth;
+            blade.classList.add('slash');
+        }
+    }
+
+    // Render sonrası yeni robota mevcut öfke durumunu uygula
+    function syncFaceState() {
+        const face = getActiveFace();
+        if (!face) return;
+        face.classList.toggle('angry', isAngry);
+        if (isAngry) {
+            startSwordLoop();
+        } else {
+            removeSword(face);
+        }
+    }
+
+    function calmDown() {
+        isAngry = false;
+        faceHits = 0;
+        stopSwordLoop();
+        const face = getActiveFace();
+        if (face) {
+            face.classList.remove('angry');
+            removeSword(face);
+        }
+    }
+
+    // Çarpışma kıvılcımları: vuruş noktasından dağılan küçük mavi parçacıklar
+    function spawnSparks(face, clientX, clientY) {
+        const rect = face.getBoundingClientRect();
+        const originX = (clientX - rect.left) * (face.offsetWidth / rect.width);
+        const originY = (clientY - rect.top) * (face.offsetHeight / rect.height);
+
+        for (let i = 0; i < 6; i++) {
+            const spark = document.createElement('span');
+            spark.className = 'spark';
+            const angle = Math.random() * Math.PI * 2;
+            const distance = 22 + Math.random() * 18;
+            spark.style.left = `${originX}px`;
+            spark.style.top = `${originY}px`;
+            spark.style.setProperty('--dx', `${Math.cos(angle) * distance}px`);
+            spark.style.setProperty('--dy', `${Math.sin(angle) * distance}px`);
+            spark.addEventListener('animationend', () => spark.remove());
+            face.appendChild(spark);
+        }
+    }
+
+    // Kılıç açıkken vuruş gelince: kılıç savrulup bloklar, kıvılcım çıkar, robot geriye teper
+    let recoilTimer = null;
+    function parryWith(sword, face, clientX, clientY) {
+        const blade = sword.querySelector('.robot-sword-blade');
+        blade.classList.remove('slash', 'parry');
+        void blade.offsetWidth;
+        blade.classList.add('parry');
+        blade.addEventListener('animationend', () => blade.classList.remove('parry'), { once: true });
+
+        spawnHitFlash(face, clientX, clientY);
+        spawnSparks(face, clientX, clientY);
+
+        // Tepki, saldırının tersi yönünde; animasyon ebeveyn katmanda çalışır ki yüzün sarsıntısıyla çakışmasın
+        const rect = face.getBoundingClientRect();
+        const deltaX = clientX - (rect.left + rect.width / 2);
+        const deltaY = clientY - (rect.top + rect.height / 2);
+        const length = Math.hypot(deltaX, deltaY) || 1;
+        const recoilEl = face.parentElement;
+        recoilEl.style.setProperty('--kx', deltaX / length);
+        recoilEl.style.setProperty('--ky', deltaY / length);
+        recoilEl.classList.remove('recoil');
+        void recoilEl.offsetWidth;
+        recoilEl.classList.add('recoil');
+        clearTimeout(recoilTimer);
+        recoilTimer = setTimeout(() => recoilEl.classList.remove('recoil'), 400);
+    }
+
+    // Tıklama noktasında mavi ışık patlaması
+    function spawnHitFlash(face, clientX, clientY) {
+        const rect = face.getBoundingClientRect();
+        const flash = document.createElement('span');
+        flash.className = 'hit-flash';
+        flash.style.left = `${(clientX - rect.left) * (face.offsetWidth / rect.width)}px`;
+        flash.style.top = `${(clientY - rect.top) * (face.offsetHeight / rect.height)}px`;
+        flash.addEventListener('animationend', () => flash.remove());
+        face.appendChild(flash);
+    }
+
+    document.addEventListener('mousemove', (e) => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+        if (eyeFrameId === null) {
+            eyeFrameId = requestAnimationFrame(() => {
+                eyeFrameId = null;
+                const face = getActiveFace();
+                if (face) updateFaceEyes(face);
+            });
+        }
+    });
+
+    // Robota tıklama: ışık efekti, sarsıntı ve vuruş sayımı
+    document.addEventListener('click', (e) => {
+        const face = e.target.closest('#qrPreview .face');
+        if (!face) return;
+
+        // Kılıç görünürken vuruş savunmayla karşılanır (ışık, kıvılcım, savrulma)
+        const sword = face.querySelector('.robot-sword');
+        if (sword && sword.style.display === 'block') {
+            parryWith(sword, face, e.clientX, e.clientY);
+        }
+        // Kızgınken her vuruş öfkeyi uzatır: sakinleşme son vuruştan sonra başlar
+        if (isAngry) {
+            clearTimeout(angerTimer);
+            angerTimer = setTimeout(calmDown, ANGER_CALM_DELAY_MS);
+            return;
+        }
+
+        faceHits++;
+        face.classList.remove('damaged');
+        void face.offsetWidth;
+        face.classList.add('damaged');
+        clearTimeout(damageTimer);
+        damageTimer = setTimeout(() => face.classList.remove('damaged'), 600);
+
+        if (faceHits >= FACE_HITS_TO_ANGER) {
+            isAngry = true;
+            face.classList.add('angry');
+            startSwordLoop();
+            clearTimeout(angerTimer);
+            angerTimer = setTimeout(calmDown, ANGER_CALM_DELAY_MS);
+        }
+    });
 
     // Copy QR text to clipboard
     if (copyQrTextBtn) {

@@ -1287,3 +1287,167 @@ select option {
     background: var(--surface);
     color: var(--text-primary);
 }
+
+/* Robot kızgınlık, mavi kılıç ve ışık efekti */
+.face.angry {
+    background: #ef4444;
+    box-shadow: 0 0 24px rgba(239, 68, 68, 0.6);
+}
+
+.face.angry .eye {
+    background: #b91c1c;
+}
+
+.face.angry .pupil {
+    background: #fecaca;
+    box-shadow: 0 0 6px rgba(252, 165, 165, 0.9);
+}
+
+.face.angry .eye::before {
+    content: '';
+    position: absolute;
+    top: 1px;
+    left: -2px;
+    right: -2px;
+    height: 5px;
+    background: #7f1d1d;
+    z-index: 1;
+}
+
+.face.angry .left-eye::before {
+    transform: rotate(25deg);
+}
+
+.face.angry .right-eye::before {
+    transform: rotate(-25deg);
+}
+
+.robot-sword {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 90px;
+    height: 16px;
+    transform-origin: 0 50%;
+    pointer-events: none;
+    display: none;
+    z-index: 3;
+}
+
+.robot-sword-blade {
+    display: block;
+    transform-origin: 0 50%;
+    filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.9));
+}
+
+.robot-sword-blade.slash {
+    animation: swordSlash 0.4s ease-out;
+}
+
+@keyframes swordSlash {
+    0% {
+        rotate: -50deg;
+    }
+    40% {
+        rotate: 40deg;
+    }
+    100% {
+        rotate: 0deg;
+    }
+}
+
+.hit-flash {
+    position: absolute;
+    width: 70px;
+    height: 70px;
+    margin-left: -35px;
+    margin-top: -35px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(254, 226, 226, 0.95) 0%, rgba(239, 68, 68, 0.7) 30%, rgba(239, 68, 68, 0) 70%);
+    box-shadow: 0 0 18px rgba(248, 113, 113, 0.9);
+    pointer-events: none;
+    z-index: 4;
+    animation: hitFlash 0.5s ease-out forwards;
+}
+
+@keyframes hitFlash {
+    0% {
+        transform: scale(0.2);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1.6);
+        opacity: 0;
+    }
+}
+
+/* Savunma: kılıç savurma, kıvılcım ve geri tepme */
+.robot-sword-blade.parry {
+    animation: swordParry 0.4s ease-out;
+}
+
+@keyframes swordParry {
+    0% {
+        rotate: 0deg;
+    }
+    30% {
+        rotate: -75deg;
+    }
+    55% {
+        rotate: 28deg;
+    }
+    75% {
+        rotate: 12deg;
+    }
+    100% {
+        rotate: 0deg;
+    }
+}
+
+.spark {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    margin-left: -2px;
+    margin-top: -2px;
+    border-radius: 50%;
+    background: #FCA5A5;
+    box-shadow: 0 0 6px #F87171;
+    pointer-events: none;
+    z-index: 5;
+    animation: sparkFly 0.45s ease-out forwards;
+}
+
+@keyframes sparkFly {
+    0% {
+        transform: translate(0, 0);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(var(--dx), var(--dy));
+        opacity: 0;
+    }
+}
+
+.digital-face.recoil {
+    animation: recoilPush 0.4s ease-out;
+}
+
+@keyframes recoilPush {
+    0% {
+        transform: translate(0, 0);
+    }
+    25% {
+        transform: translate(calc(var(--kx) * -14px), calc(var(--ky) * -14px));
+    }
+    100% {
+        transform: translate(0, 0);
+    }
+}
+
+/* Robot kızgınken üstteki noktalar da kırmızı */
+.placeholder-animation:has(.face.angry) .animated-dots span,
+.background-animation:has(.face.angry) .animated-dots span {
+    background: #ef4444;
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.7);
+}
