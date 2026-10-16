@@ -572,7 +572,10 @@ EOF
     const FACE_HITS_TO_ANGER = 3;
     const ANGER_CALM_DELAY_MS = 5000;   // son vuruştan sonra sakinleşme süresi
     const SWORD_RANGE_PX = 220;
-    const SWORD_ORBIT_PX = 58;     // kılıç tutma noktasının yüz merkezine uzaklığı
+    const SWORD_GUARD_SWING_DEG = 70;  // kılıcın öne doğru açılabileceği en fazla açı
+    const SWORD_LENGTH_PX = 90;        // kılıç svg genişliği
+    const SWORD_SIDE_SWITCH_PX = 30;   // kılıcın yan değiştirmesi için gereken yatay uzaklık
+    const CALM_EFFECT_MS = 1000;       // kızgınlıktan normale geçiş süresi
     const SWORD_FOLLOW = 0.18;     // kılıcın imleci takip hızı (0-1)
     const SLASH_RANGE_PX = 90;
     const SLASH_COOLDOWN_MS = 450;
@@ -586,6 +589,7 @@ EOF
     let eyeFrameId = null;
     let swordLoopId = null;
     let swordX = null;             // kılıç tutma noktası (yüz içi px)
+    let guardSide = 1;             // kılıcın tutulduğu yan (-1 sol, 1 sağ)
     let swordY = null;
     let lastSlashAt = 0;
 
@@ -668,6 +672,7 @@ EOF
         swordLoopId = requestAnimationFrame(tickSword);
     }
 
+    // Kılıcın orta noktası imlecin üstüne gelir; tutma noktası imlecin gerisinde kalır, savunma duruşu böyle oluşur
     function updateSword(face) {
         const rect = face.getBoundingClientRect();
         const centerX = rect.left + rect.width / 2;
@@ -683,22 +688,32 @@ EOF
         }
         sword.style.display = 'block';
 
-        // Tutma noktası yüzün etrafında, imlecin olduğu yöne doğru hedeflenir
-        const dirX = distance ? deltaX / distance : 1;
-        const dirY = distance ? deltaY / distance : 0;
-        const targetX = face.offsetWidth / 2 + dirX * SWORD_ORBIT_PX;
-        const targetY = face.offsetHeight / 2 + dirY * SWORD_ORBIT_PX;
+        // Kılıç yanı yalnızca imleç merkezden belirgin uzaklaşınca değişir (titremeyi önler)
+        if (Math.abs(deltaX) > SWORD_SIDE_SWITCH_PX) guardSide = deltaX < 0 ? -1 : 1;
+        const forward = guardSide > 0 ? 0 : Math.PI;
+        let offset = Math.atan2(deltaY, deltaX) - forward;
+        offset = Math.atan2(Math.sin(offset), Math.cos(offset));
+        const maxOffset = SWORD_GUARD_SWING_DEG * Math.PI / 180;
+        offset = Math.max(-maxOffset, Math.min(maxOffset, offset));
+        const angle = forward + offset;
+
+        // Tutma noktası = imleç - kılıcın yarısı kadar, böylece kılıç imleci tam keser
+        const scaleX = face.offsetWidth / rect.width;
+        const scaleY = face.offsetHeight / rect.height;
+        const cursorX = (mouseX - rect.left) * scaleX;
+        const cursorY = (mouseY - rect.top) * scaleY;
+        const half = SWORD_LENGTH_PX / 2;
+        const targetX = cursorX - Math.cos(angle) * half;
+        const targetY = cursorY - Math.sin(angle) * half;
         if (swordX === null) {
             swordX = targetX;
             swordY = targetY;
         }
         swordX += (targetX - swordX) * SWORD_FOLLOW;
         swordY += (targetY - swordY) * SWORD_FOLLOW;
-
         sword.style.left = `${swordX}px`;
         sword.style.top = `${swordY}px`;
-        const angleDeg = Math.atan2(deltaY, deltaX) * 180 / Math.PI;
-        sword.style.transform = `translateY(-50%) rotate(${angleDeg}deg)`;
+        sword.style.transform = `translateY(-50%) rotate(${angle * 180 / Math.PI}deg)`;
 
         const now = performance.now();
         if (distance <= SLASH_RANGE_PX && now - lastSlashAt > SLASH_COOLDOWN_MS) {
@@ -722,6 +737,8 @@ EOF
         }
     }
 
+    // Sakinleşme: kırmızıdan mor ve maviden geçip normale döner
+    let calmingTimer = null;
     function calmDown() {
         isAngry = false;
         faceHits = 0;
@@ -729,11 +746,64 @@ EOF
         const face = getActiveFace();
         if (face) {
             face.classList.remove('angry');
+            face.classList.add('calming');
             removeSword(face);
+            clearTimeout(calmingTimer);
+            calmingTimer = setTimeout(() => face.classList.remove('calming'), CALM_EFFECT_MS);
+            startFrameSync();
         }
     }
 
-    // Çarpışma kıvılcımları: vuruş noktasından dağılan küçük mavi parçacıklar
+    // Robotun o anki rengi (kızgınlık ve sakinleşme animasyonu dahil); çerçeve ve efektler bu rengi alır
+    function getRobotRgb(face) {
+        const parts = getComputedStyle(face).backgroundColor.match(/\d+(\.\d+)?/g);
+        return parts ? parts.slice(0, 3).map(Number) : [20, 184, 166];
+    }
+
+    function rgba(rgb, alpha) {
+        return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
+    }
+
+    // Önizleme çerçevesini robotla aynı renkte tutar; kızgın ya da sakinleşirken her karede güncellenir
+    let frameFrameId = null;
+    function syncPreviewFrame() {
+        const face = getActiveFace();
+        const container = document.querySelector('.preview-container');
+        if (!face || !container) {
+            frameFrameId = null;
+            return;
+        }
+        if (face.classList.contains('angry') || face.classList.contains('calming') || face.classList.contains('damaged')) {
+            const rgb = getRobotRgb(face);
+            container.style.transition = 'none';
+            container.style.borderColor = rgba(rgb, 1);
+            container.style.boxShadow = `0 0 20px ${rgba(rgb, 0.35)}, inset 0 0 18px ${rgba(rgb, 0.1)}`;
+            frameFrameId = requestAnimationFrame(syncPreviewFrame);
+        } else {
+            frameFrameId = null;
+            container.style.borderColor = '';
+            container.style.boxShadow = '';
+            container.style.transition = '';
+        }
+    }
+
+    // Çerçeve de yüzle birlikte sarsılır
+    let frameShakeTimer = null;
+    function shakePreviewFrame() {
+        const container = document.querySelector('.preview-container');
+        if (!container) return;
+        container.classList.remove('damaged');
+        void container.offsetWidth;
+        container.classList.add('damaged');
+        clearTimeout(frameShakeTimer);
+        frameShakeTimer = setTimeout(() => container.classList.remove('damaged'), 600);
+    }
+
+    function startFrameSync() {
+        if (frameFrameId === null) frameFrameId = requestAnimationFrame(syncPreviewFrame);
+    }
+
+    // Çarpışma kıvılcımları: vuruş noktasından dağılan parçacıklar, robotun rengiyle
     function spawnSparks(face, clientX, clientY) {
         const rect = face.getBoundingClientRect();
         const originX = (clientX - rect.left) * (face.offsetWidth / rect.width);
@@ -742,6 +812,9 @@ EOF
         for (let i = 0; i < 6; i++) {
             const spark = document.createElement('span');
             spark.className = 'spark';
+            const sparkRgb = getRobotRgb(face);
+            spark.style.background = rgba(sparkRgb, 1);
+            spark.style.boxShadow = `0 0 6px ${rgba(sparkRgb, 0.9)}`;
             const angle = Math.random() * Math.PI * 2;
             const distance = 22 + Math.random() * 18;
             spark.style.left = `${originX}px`;
@@ -785,6 +858,9 @@ EOF
         const rect = face.getBoundingClientRect();
         const flash = document.createElement('span');
         flash.className = 'hit-flash';
+        const flashRgb = getRobotRgb(face);
+        flash.style.background = `radial-gradient(circle, rgba(255, 255, 255, 0.9) 0%, ${rgba(flashRgb, 0.75)} 30%, ${rgba(flashRgb, 0)} 70%)`;
+        flash.style.boxShadow = `0 0 18px ${rgba(flashRgb, 0.9)}`;
         flash.style.left = `${(clientX - rect.left) * (face.offsetWidth / rect.width)}px`;
         flash.style.top = `${(clientY - rect.top) * (face.offsetHeight / rect.height)}px`;
         flash.addEventListener('animationend', () => flash.remove());
@@ -804,33 +880,68 @@ EOF
     });
 
     // Robota tıklama: ışık efekti, sarsıntı ve vuruş sayımı
+    // Kılıcı savurarak blokla: kıvılcım çıkar, savrulma ve ışık olmadan
+    function blockWithSword(sword, face, clientX, clientY) {
+        const blade = sword.querySelector('.robot-sword-blade');
+        blade.classList.remove('slash', 'parry');
+        void blade.offsetWidth;
+        blade.classList.add('parry');
+        blade.addEventListener('animationend', () => blade.classList.remove('parry'), { once: true });
+        spawnSparks(face, clientX, clientY);
+    }
+
+    // Kızgınken vuruş isabet etmez: robot tıklamanın ters yönüne hızla kaçar ve geri döner
+    function dodgeAway(face, clientX, clientY) {
+        const rect = face.getBoundingClientRect();
+        const deltaX = clientX - (rect.left + rect.width / 2);
+        const deltaY = clientY - (rect.top + rect.height / 2);
+        const length = Math.hypot(deltaX, deltaY) || 1;
+        const dodgeEl = face.parentElement;
+        dodgeEl.style.setProperty('--kx', deltaX / length);
+        dodgeEl.style.setProperty('--ky', deltaY / length);
+        dodgeEl.classList.remove('recoil', 'dodge');
+        void dodgeEl.offsetWidth;
+        dodgeEl.classList.add('dodge');
+        clearTimeout(recoilTimer);
+        recoilTimer = setTimeout(() => dodgeEl.classList.remove('dodge'), 450);
+    }
+
+    // Robota tıklama: kızgınken kaçar, sakinken sersemler
     document.addEventListener('click', (e) => {
         const face = e.target.closest('#qrPreview .face');
         if (!face) return;
-
-        // Kılıç görünürken vuruş savunmayla karşılanır (ışık, kıvılcım, savrulma)
         const sword = face.querySelector('.robot-sword');
-        if (sword && sword.style.display === 'block') {
-            parryWith(sword, face, e.clientX, e.clientY);
-        }
-        // Kızgınken her vuruş öfkeyi uzatır: sakinleşme son vuruştan sonra başlar
+        const swordOut = sword && sword.style.display === 'block';
+
         if (isAngry) {
+            if (swordOut) blockWithSword(sword, face, e.clientX, e.clientY);
+            dodgeAway(face, e.clientX, e.clientY);
+            // Kızgınken her tıklama öfkeyi uzatır: sakinleşme son tıklamadan sonra başlar
             clearTimeout(angerTimer);
             angerTimer = setTimeout(calmDown, ANGER_CALM_DELAY_MS);
             return;
         }
 
-        faceHits++;
+        // Kılıç görünürken vuruş savunmayla karşılanır (ışık, kıvılcım, savrulma)
+        if (swordOut) parryWith(sword, face, e.clientX, e.clientY);
+
+        // Her vuruş sersemletir: yüz sarsılır, renk parlar ve arka plan çerçevesi de aynı efekti alır
         face.classList.remove('damaged');
         void face.offsetWidth;
         face.classList.add('damaged');
         clearTimeout(damageTimer);
         damageTimer = setTimeout(() => face.classList.remove('damaged'), 600);
+        startFrameSync();
+        shakePreviewFrame();
 
+        faceHits++;
         if (faceHits >= FACE_HITS_TO_ANGER) {
             isAngry = true;
+            clearTimeout(calmingTimer);
+            face.classList.remove('calming');
             face.classList.add('angry');
             startSwordLoop();
+            startFrameSync();
             clearTimeout(angerTimer);
             angerTimer = setTimeout(calmDown, ANGER_CALM_DELAY_MS);
         }
