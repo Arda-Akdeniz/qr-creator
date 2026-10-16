@@ -1651,19 +1651,25 @@ select option {
     }
 }
 
-/* Kızgın robot vuruştan kaçar */
-.digital-face.dodge {
-    animation: dodgeDash 0.45s ease-out;
 }
 
-@keyframes dodgeDash {
+/* Kızgın robot imleç üstüne gelince kılıcıyla ileri hamle yapar */
+.robot-sword-blade.thrust {
+    animation: swordThrust 0.3s ease-out;
+}
+
+@keyframes swordThrust {
     0% {
-        transform: translate(0, 0);
+        transform: translateX(0);
     }
-    30% {
-        transform: translate(calc(var(--kx) * -45px), calc(var(--ky) * -45px));
+    40% {
+        transform: translateX(38px);
     }
     100% {
-        transform: translate(0, 0);
+        transform: translateX(0);
     }
+}
+
+.digital-face {
+    transition: transform 0.25s ease-out;
 }

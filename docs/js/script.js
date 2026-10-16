@@ -570,7 +570,8 @@ EOF
 
     // Robot yüzü etkileşimi: 3 kez vurulunca sinirlenir, imleç yaklaşınca mavi kılıçla savunur
     const FACE_HITS_TO_ANGER = 3;
-    const ANGER_CALM_DELAY_MS = 5000;   // son vuruştan sonra sakinleşme süresi
+    const CALM_STILL_MS = 3500;         // robot bu kadar süre aynı yerde kalırsa sakinleşir
+    const CALM_CHECK_MS = 200;
     const SWORD_RANGE_PX = 220;
     const SWORD_GUARD_SWING_DEG = 70;  // kılıcın öne doğru açılabileceği en fazla açı
     const SWORD_LENGTH_PX = 90;        // kılıç svg genişliği
@@ -582,7 +583,8 @@ EOF
 
     let faceHits = 0;
     let isAngry = false;
-    let angerTimer = null;
+    let calmWatchId = null;
+    let lastFaceMoveAt = 0;        // robotun son hareket anı
     let damageTimer = null;
     let mouseX = 0;
     let mouseY = 0;
@@ -727,6 +729,9 @@ EOF
 
     // Render sonrası yeni robota mevcut öfke durumunu uygula
     function syncFaceState() {
+        evading = false;
+        evadeX = 0;
+        evadeY = 0;
         const face = getActiveFace();
         if (!face) return;
         face.classList.toggle('angry', isAngry);
@@ -739,8 +744,20 @@ EOF
 
     // Sakinleşme: kırmızıdan mor ve maviden geçip normale döner
     let calmingTimer = null;
+    // Robot hareketsiz kaldıkça sayar; hareket ederse sayaç sıfırlanır
+    function startCalmWatch() {
+        if (calmWatchId !== null) return;
+        calmWatchId = setInterval(() => {
+            if (isAngry && performance.now() - lastFaceMoveAt >= CALM_STILL_MS) calmDown();
+        }, CALM_CHECK_MS);
+    }
+
     function calmDown() {
+        clearInterval(calmWatchId);
+        calmWatchId = null;
         isAngry = false;
+        evading = false;
+        setEvade(0, 0);
         faceHits = 0;
         stopSwordLoop();
         const face = getActiveFace();
@@ -870,6 +887,7 @@ EOF
     document.addEventListener('mousemove', (e) => {
         mouseX = e.clientX;
         mouseY = e.clientY;
+        updateEvasion();
         if (eyeFrameId === null) {
             eyeFrameId = requestAnimationFrame(() => {
                 eyeFrameId = null;
@@ -880,6 +898,109 @@ EOF
     });
 
     // Robota tıklama: ışık efekti, sarsıntı ve vuruş sayımı
+    // Kızgın robot imleç üstüne gelince kaçar ve kılıcını imlece doğru savurur
+    const EVADE_DISTANCE_PX = 90;   // kaçış mesafesi
+    const EVADE_PAD_PX = 6;
+    const EVADE_EDGE_PX = 8;        // kaçış sırasında önizleme kenarına bırakılacak boşluk         // robotun kenarına bu kadar yakın imleç de "üstünde" sayılır
+    const EVADE_STAY_PX = 130;      // imleç robottan bu kadar uzaklaşmadıkça robot geri dönmez
+    let evading = false;
+    let evadeX = 0;
+    let evadeY = 0;
+    let homeCx = 0;                 // robotun kaçmadan önceki merkezi (sayfa koordinatı)
+    let homeCy = 0;
+
+    function setEvade(x, y) {
+        if (x !== evadeX || y !== evadeY) lastFaceMoveAt = performance.now();
+        evadeX = x;
+        evadeY = y;
+        const face = getActiveFace();
+        if (face) face.parentElement.style.transform = (x || y) ? `translate(${x}px, ${y}px)` : '';
+    }
+
+    // Kılıç ileri doğru hamle yapar (kılıç ucu imlece doğru uzanır)
+    function thrustSword(face) {
+        const sword = ensureSword(face);
+        sword.style.display = 'block';
+        const blade = sword.querySelector('.robot-sword-blade');
+        blade.classList.remove('thrust');
+        void blade.offsetWidth;
+        blade.classList.add('thrust');
+        blade.addEventListener('animationend', () => blade.classList.remove('thrust'), { once: true });
+    }
+
+    // Robot alanın içinde kalacak en uygun kaçış yönünü seçer: imleçten uzak ve yeterince boş olan
+    function axisRoom(u, center, half, min, max) {
+        if (Math.abs(u) < 1e-6) return Infinity;
+        return u > 0
+            ? (max - EVADE_EDGE_PX - (center + half)) / u
+            : ((min + EVADE_EDGE_PX) - (center - half)) / u;
+    }
+
+    function findEvadeVector(face) {
+        const rect = face.getBoundingClientRect();
+        const container = face.closest('.preview-container');
+        const cr = container ? container.getBoundingClientRect() : { left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity };
+        const halfW = rect.width / 2;
+        const halfH = rect.height / 2;
+        const awayLength = Math.hypot(homeCx - mouseX, homeCy - mouseY) || 1;
+        const awayX = (homeCx - mouseX) / awayLength;
+        const awayY = (homeCy - mouseY) / awayLength;
+
+        let best = { x: 0, y: 0, score: -Infinity };
+        for (let i = 0; i < 16; i++) {
+            const angle = i * Math.PI / 8;
+            const ux = Math.cos(angle);
+            const uy = Math.sin(angle);
+            const room = Math.min(
+                axisRoom(ux, homeCx, halfW, cr.left, cr.right),
+                axisRoom(uy, homeCy, halfH, cr.top, cr.bottom)
+            );
+            const distance = Math.max(0, Math.min(EVADE_DISTANCE_PX, room));
+            const score = distance + 60 * (ux * awayX + uy * awayY);
+            if (score > best.score) best = { x: ux * distance, y: uy * distance, score };
+        }
+        return { x: best.x, y: best.y };
+    }
+
+    // Kaçış kararı robotun kaçmadan önceki merkezine ve hedef konumuna göre verilir; hareket sırasında titremez
+    function updateEvasion(force = false) {
+        const face = getActiveFace();
+        if (!face || !isAngry) {
+            if (evading) {
+                evading = false;
+                setEvade(0, 0);
+            }
+            return;
+        }
+        const rect = face.getBoundingClientRect();
+        const halfW = rect.width / 2 + EVADE_PAD_PX;
+        const halfH = rect.height / 2 + EVADE_PAD_PX;
+
+        if (!evading) {
+            homeCx = rect.left + rect.width / 2;
+            homeCy = rect.top + rect.height / 2;
+            const over = Math.abs(mouseX - homeCx) <= halfW && Math.abs(mouseY - homeCy) <= halfH;
+            if (!over && !force) return;
+            evading = true;
+            thrustSword(face);
+            const v = findEvadeVector(face);
+            setEvade(v.x, v.y);
+            return;
+        }
+
+        // Robot kaçarken: imleç hedef konumun üstüne gelirse yeniden kaçar, asıl konuma yakınsa geri döner
+        const targetX = homeCx + evadeX;
+        const targetY = homeCy + evadeY;
+        const overTarget = Math.abs(mouseX - targetX) <= halfW && Math.abs(mouseY - targetY) <= halfH;
+        if (overTarget || force) {
+            const v = findEvadeVector(face);
+            setEvade(v.x, v.y);
+        } else if (Math.hypot(mouseX - homeCx, mouseY - homeCy) > EVADE_STAY_PX) {
+            evading = false;
+            setEvade(0, 0);
+        }
+    }
+
     // Kılıcı savurarak blokla: kıvılcım çıkar, savrulma ve ışık olmadan
     function blockWithSword(sword, face, clientX, clientY) {
         const blade = sword.querySelector('.robot-sword-blade');
@@ -888,22 +1009,6 @@ EOF
         blade.classList.add('parry');
         blade.addEventListener('animationend', () => blade.classList.remove('parry'), { once: true });
         spawnSparks(face, clientX, clientY);
-    }
-
-    // Kızgınken vuruş isabet etmez: robot tıklamanın ters yönüne hızla kaçar ve geri döner
-    function dodgeAway(face, clientX, clientY) {
-        const rect = face.getBoundingClientRect();
-        const deltaX = clientX - (rect.left + rect.width / 2);
-        const deltaY = clientY - (rect.top + rect.height / 2);
-        const length = Math.hypot(deltaX, deltaY) || 1;
-        const dodgeEl = face.parentElement;
-        dodgeEl.style.setProperty('--kx', deltaX / length);
-        dodgeEl.style.setProperty('--ky', deltaY / length);
-        dodgeEl.classList.remove('recoil', 'dodge');
-        void dodgeEl.offsetWidth;
-        dodgeEl.classList.add('dodge');
-        clearTimeout(recoilTimer);
-        recoilTimer = setTimeout(() => dodgeEl.classList.remove('dodge'), 450);
     }
 
     // Robota tıklama: kızgınken kaçar, sakinken sersemler
@@ -915,10 +1020,10 @@ EOF
 
         if (isAngry) {
             if (swordOut) blockWithSword(sword, face, e.clientX, e.clientY);
-            dodgeAway(face, e.clientX, e.clientY);
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+            updateEvasion(true);
             // Kızgınken her tıklama öfkeyi uzatır: sakinleşme son tıklamadan sonra başlar
-            clearTimeout(angerTimer);
-            angerTimer = setTimeout(calmDown, ANGER_CALM_DELAY_MS);
             return;
         }
 
@@ -942,8 +1047,8 @@ EOF
             face.classList.add('angry');
             startSwordLoop();
             startFrameSync();
-            clearTimeout(angerTimer);
-            angerTimer = setTimeout(calmDown, ANGER_CALM_DELAY_MS);
+            lastFaceMoveAt = performance.now();
+            startCalmWatch();
         }
     });
 
